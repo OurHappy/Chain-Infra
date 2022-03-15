@@ -1,0 +1,76 @@
+---
+- hosts: "localhost"
+  name: Create EC2
+  vars_files:
+    - defaults/main.yml
+  tasks:
+    - name: random subnet
+      set_fact:
+        random_subnet: "{{ item }}"
+      with_random_choice: "{{ subnets }}"
+
+    - name: get index of hosts
+      local_action: shell grep "ourchain-[0-99]" inventory/hosts | sort | tail -1 | awk '{print $ 1}' | awk -F'-' '{print $ NF}' | xargs -I% expr % + 1
+      register: new_server_index
+
+    - name: set instance name with index
+      set_fact: 
+        instance_name: "ourchain-{{ new_server_index.stdout if new_server_index.stdout != '' else '1' }}"
+
+    - name: create ec2 instance
+      amazon.aws.ec2_instance:
+        key_name: "{{ ec2_key_name}}"
+        instance_type: "{{ type | default('t3.medium')}}"
+        image_id: ami-04b01426eed3e9bcf
+        wait: yes
+        wait_timeout: 60
+        security_group: "{{ security_group }}"
+        network:
+          assign_public_ip: yes
+        volumes:
+          - device_name: /dev/xvda
+            ebs:
+              volume_type: gp3
+              volume_size: 100
+              delete_on_termination: yes
+        ebs_optimized: yes
+        region: ap-southeast-1
+        vpc_subnet_id: "{{ random_subnet }}"
+        tags:
+          Name: "{{ instance_name }}"
+      register: result_ec2
+
+    - pause: 
+        seconds: 20
+
+    - name: get ec2 public ip
+      amazon.aws.ec2_instance_info:
+        instance_ids:
+          - "{{ result_ec2.instances.0.instance_id }}"
+      register: result_instance
+    
+    - name: debug instance
+      debug:
+        msg: "{{ result_instance.instances.0.public_ip_address }}"
+    
+    - name: Wait for ssh
+      wait_for:
+        port: 22
+        host: "{{ result_instance.instances.0.public_ip_address }}"
+        search_regex: OpenSSH
+        delay: 10
+        connect_timeout: 60
+
+    - name: write hosts into memory
+      add_host:
+        hostname: "{{ result_ec2.instances.0.tags.Name }}"
+        ansible_host: "{{ result_instance.instances.0.public_ip_address }}"
+        groups: "init_server"
+
+- hosts: init_server
+  name: Initial server
+  gather_facts: no
+  roles:
+    - {role: init-basic, become: yes, hostname: "{{ hostvars['localhost']['result_ec2']['instances'][0]['tags']['Name'] }}"}
+    - {role: init-oursong-chain-server, become: yes}
+    - {role: init-supervisor, become: yes, supervisor_conf: [our-chain.conf]}

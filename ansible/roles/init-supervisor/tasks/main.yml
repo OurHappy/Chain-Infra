@@ -1,0 +1,13 @@
+- name: install supervisor
+  apt:
+    name: supervisor
+    install_recommends: no
+    update_cache: yes
+
+- name: configure supervisor
+  copy:
+    src: "{{ item }}"
+    dest: "/etc/supervisor/conf.d/{{ item }}"
+  with_items: "{{ supervisor_conf }}"
+  notify: restart service supervisor
+  when: supervisor_conf is defined

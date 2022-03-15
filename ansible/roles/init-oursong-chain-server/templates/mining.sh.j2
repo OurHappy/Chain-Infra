@@ -1,0 +1,1 @@
+geth --datadir /srv/Geth/data --networkid 8989 --port 30303 --netrestrict 0.0.0.0/0 --bootnodes "{{ bootnode }}" --syncmode full --allow-insecure-unlock --http --http.corsdomain "*" --http.port 8545 --unlock 0x{{ coinbase.stdout }} --password /srv/Geth/password.txt --mine

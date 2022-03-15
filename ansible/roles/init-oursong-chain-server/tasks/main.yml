@@ -1,0 +1,97 @@
+
+- name: install basic package
+  apt:
+    name: "{{ item }}"
+    install_recommends: no
+    update_cache: yes
+  with_items:
+    - build-essential
+
+- name: mkdir /srv/Geth
+  file: 
+    path: /srv/Geth
+    state: directory
+    owner: root
+    group: root
+
+- name: mkdir /srv/go-ethereum
+  file: 
+    path: /srv/go-ethereum
+    state: directory
+    owner: root
+    group: root
+
+- name: install go
+  unarchive:
+    src: https://go.dev/dl/go1.17.5.linux-amd64.tar.gz
+    dest: /usr/local/
+    owner: root
+    group: root
+    remote_src: yes
+
+- name: export go path
+  lineinfile:
+    path: /etc/bash.bashrc
+    line: 'export PATH=$PATH:/usr/local/go/bin'
+
+- name: replace sudoers PATH
+  replace:
+    path: /etc/sudoers
+    regexp: 'secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"'
+    replace: 'secure_path="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/local/go/bin"'
+    backup: yes
+
+- name: git clone go-ethereum
+  git:
+    repo: https://github.com/ethereum/go-ethereum.git
+    dest: /srv/go-ethereum
+
+- name: build go-ethereum
+  make:
+    chdir: /srv/go-ethereum
+    target: all
+
+- name: copy geth
+  copy:
+    remote_src: yes
+    src: "/srv/go-ethereum/build/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    owner: root
+    group: root
+    mode: '0755'
+  with_items:
+    - geth
+
+- name: create random password
+  set_fact:
+    random_pass: "{{ lookup('password', '/dev/null chars=ascii_lowercase,ascii_uppercase,digits, length=16') }}"
+
+- name: generate password file
+  lineinfile:
+    path: /srv/Geth/password.txt
+    line: "{{ random_pass }}"
+    create: yes
+
+- name: new account
+  shell: "cd /srv/Geth && /srv/go-ethereum/build/bin/geth --datadir /srv/Geth/data account new --password /srv/Geth/password.txt"
+
+- name: get coinbase
+  shell: ls /srv/Geth/data/keystore | awk -F'-' '{print $9}'
+  register: coinbase
+
+- name: debug
+  debug: "msg={{ coinbase }}"
+
+- name: copy ourchain.json
+  copy: 
+    src: ourchain.json
+    dest: /srv/Geth/
+
+- name: copy mining.sh
+  template:
+    src: mining.sh.j2
+    dest: /srv/Geth/mining.sh
+    mode: '0777'
+
+- name: init geth
+  shell: geth --datadir /srv/Geth/data init /srv/Geth/ourchain.json

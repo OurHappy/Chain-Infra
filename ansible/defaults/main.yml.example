@@ -1,0 +1,7 @@
+subnets:
+	- "subnet-aabbccdd"
+	- "subnet-11223344"
+	- "subnet-aabb3344"
+
+ec2_key_name: ec2_key_pair_name
+security_group: security_group_name

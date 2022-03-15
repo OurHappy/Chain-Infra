@@ -1,0 +1,17 @@
+---
+- name: restart service rsyslog
+  service:
+    name: rsyslog
+    state: restarted
+
+- name: restart ntp service
+  service:
+    name: ntp
+    state: restarted
+    enabled: yes
+
+- name: restart cron service
+  service:
+    name: cron
+    state: restarted
+    

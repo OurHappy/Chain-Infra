@@ -1,0 +1,14 @@
+---
+packages:
+      - ca-certificates
+      - apt-transport-https
+      - sysvinit-utils
+      - git
+      - telnet
+      - ntp
+      - ntpdate
+      - curl
+      - unzip
+      - iftop
+      - fail2ban
+      - gnupg

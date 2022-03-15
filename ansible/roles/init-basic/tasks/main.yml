@@ -1,0 +1,50 @@
+- name: Wait for connect
+  wait_for_connection:
+    timeout: 60
+
+- name: Gather facts for first time
+  setup:
+
+- name: set locale
+  locale_gen:
+    name: "{{ item }}"
+    state: present
+  with_items:
+    - zh_TW.UTF-8
+    - en_US.UTF-8
+
+- name: set timezone
+  timezone:
+    hwclock: local
+    name: Asia/Taipei
+  notify: 
+    - restart service rsyslog 
+    - restart cron service
+
+- name: Set a hostname
+  hostname:
+    name: "{{ hostname }}"
+
+- name: Replace a localhost entry with our own
+  lineinfile:
+    path: "{{ item }}"
+    regexp: '^127\.0\.0\.1 localhost$'
+    line: 127.0.0.1 localhost {{ hostname }}
+    owner: root
+    group: root
+    mode: '0644'
+  with_items:
+    - /etc/cloud/templates/hosts.debian.tmpl
+    - /etc/hosts
+
+- name: install basic package
+  apt:
+    name: "{{ packages }}"
+    install_recommends: no
+    update_cache: yes
+
+- name: cp ntp config to server
+  copy:
+    src: "ntp.conf"
+    dest: "/etc/ntp.conf"
+  notify: restart ntp service
